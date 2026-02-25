@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>V-Cube 8 - 8 x 8 x 8</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent: #9b59b6;
+    --accent-glow: rgba(155,89,182,0.35);
+    --bg: #08080c;
+    --surface: rgba(255,255,255,0.04);
+    --border: rgba(255,255,255,0.08);
+    --text: #e4e2df;
+    --text-dim: rgba(255,255,255,0.35);
+    --text-muted: rgba(255,255,255,0.18);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'Sora',sans-serif; overflow:hidden; height:100vh; width:100vw; cursor:grab; }
+  body:active { cursor:grabbing; }
+  canvas { display:block; position:fixed; top:0; left:0; z-index:1; }
+  .bg-gradient { position:fixed; inset:0; background: radial-gradient(ellipse 60% 50% at 50% 45%, rgba(155,89,182,0.06) 0%, transparent 70%), radial-gradient(ellipse 40% 35% at 30% 60%, rgba(108,92,231,0.03) 0%, transparent 60%); z-index:0; pointer-events:none; }
+  .noise-overlay { position:fixed; inset:0; opacity:0.025; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); z-index:0; pointer-events:none; }
+
+  /* Nav bar */
+  .nav-bar { position:fixed; top:0; left:0; right:0; display:flex; align-items:center; justify-content:center; gap:0; padding:0; z-index:20; background:rgba(8,8,12,0.85); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-bottom:1px solid var(--border); }
+  .nav-brand { font-family:'DM Mono',monospace; font-size:12px; font-weight:500; letter-spacing:3px; text-transform:uppercase; color:rgba(255,255,255,0.5); padding:14px 24px; margin-right:auto; }
+  .nav-brand span { color:var(--accent); }
+  .nav-links { display:flex; gap:0; margin-right:auto; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  .nav-links::-webkit-scrollbar { display:none; }
+  .nav-link { font-family:'DM Mono',monospace; font-size:11px; font-weight:500; color:var(--text-dim); text-decoration:none; padding:14px 14px; letter-spacing:1px; transition:all 0.2s; border-bottom:2px solid transparent; white-space:nowrap; }
+  .nav-link:hover { color:#fff; background:rgba(255,255,255,0.03); }
+  .nav-link.nav-active { color:#fff; border-bottom-color:var(--accent); }
+
+  .timer-block { position:fixed; top:56px; left:50%; transform:translateX(-50%); text-align:center; z-index:10; padding:16px 0 0; }
+  .timer-value { font-family:'DM Mono',monospace; font-size:32px; font-weight:500; color:#fff; letter-spacing:3px; text-shadow:0 0 30px var(--accent-glow); line-height:1; }
+  .move-count { font-family:'DM Mono',monospace; font-size:11px; color:var(--text-dim); letter-spacing:1px; margin-top:3px; }
+
+  .instructions { position:fixed; left:24px; top:50%; transform:translateY(-50%); z-index:10; max-width:160px; display:flex; flex-direction:column; gap:8px; }
+  .inst-item { display:flex; align-items:flex-start; gap:7px; }
+  .inst-key { font-family:'DM Mono',monospace; font-size:9px; font-weight:500; color:rgba(255,255,255,0.4); background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:2px 5px; white-space:nowrap; flex-shrink:0; }
+  .inst-desc { font-size:10px; color:var(--text-muted); line-height:1.4; }
+
+  .moves-panel { position:fixed; right:14px; top:50%; transform:translateY(-50%); display:none; flex-direction:column; gap:2px; z-index:10; max-height:85vh; overflow-y:auto; scrollbar-width:none; }
+  .moves-panel::-webkit-scrollbar { display:none; }
+  .moves-section-label { font-family:'DM Mono',monospace; font-size:8px; color:var(--text-muted); letter-spacing:2px; text-transform:uppercase; text-align:center; margin:4px 0 1px; }
+  .move-pair { display:flex; gap:2px; }
+  .mbtn { width:34px; height:22px; border:1px solid var(--border); border-radius:5px; background:var(--surface); color:rgba(255,255,255,0.55); font-family:'DM Mono',monospace; font-size:8px; font-weight:500; cursor:pointer; transition:all 0.15s; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(8px); }
+  .mbtn:hover { background:rgba(155,89,182,0.2); border-color:rgba(155,89,182,0.4); color:#fff; transform:scale(1.06); }
+  .mbtn:active { transform:scale(0.94); }
+
+  .bottom-bar { position:fixed; bottom:0; left:0; right:0; display:flex; justify-content:center; align-items:center; gap:8px; padding:24px 32px; z-index:10; pointer-events:none; }
+  .btn { padding:10px 22px; border:1px solid var(--border); border-radius:10px; background:var(--surface); color:var(--text); font-family:'Sora',sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.2s; backdrop-filter:blur(10px); pointer-events:auto; letter-spacing:0.3px; }
+  .btn:hover { background:rgba(155,89,182,0.15); border-color:rgba(155,89,182,0.4); transform:translateY(-2px); box-shadow:0 6px 20px rgba(155,89,182,0.12); }
+  .btn:active { transform:translateY(0); }
+  .btn.primary { background:linear-gradient(135deg,var(--accent),rgba(155,89,182,0.8)); border-color:transparent; color:#fff; }
+  .btn.primary:hover { box-shadow:0 6px 25px rgba(155,89,182,0.35); }
+  .btn.solve { background:linear-gradient(135deg,#27ae60,#2ecc71); border-color:transparent; color:#fff; }
+  .btn.solve:hover { box-shadow:0 6px 25px rgba(46,204,113,0.35); }
+  .btn:disabled { opacity:0.35; pointer-events:none; }
+
+  .history { position:fixed; bottom:72px; left:50%; transform:translateX(-50%); display:flex; gap:3px; z-index:10; max-width:70vw; overflow-x:auto; padding:5px 12px; scrollbar-width:none; }
+  .history::-webkit-scrollbar { display:none; }
+  .history-chip { font-family:'DM Mono',monospace; font-size:10px; color:var(--text-muted); padding:3px 6px; border-radius:4px; background:rgba(255,255,255,0.02); white-space:nowrap; flex-shrink:0; }
+
+  .solved-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.75); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:100; opacity:0; pointer-events:none; transition:opacity 0.5s; backdrop-filter:blur(12px); }
+  .solved-overlay.show { opacity:1; pointer-events:auto; }
+  .solved-badge { font-family:'DM Mono',monospace; font-size:11px; font-weight:500; letter-spacing:6px; text-transform:uppercase; color:var(--accent); margin-bottom:12px; }
+  .solved-title { font-size:52px; font-weight:700; color:#fff; text-shadow:0 0 50px var(--accent-glow); margin-bottom:8px; }
+  .solved-stats { font-family:'DM Mono',monospace; font-size:16px; color:rgba(255,255,255,0.5); margin-bottom:32px; letter-spacing:1px; }
+
+  @media (max-width:768px) {
+    .moves-panel,.instructions { display:none; }
+    .timer-value { font-size:22px; }
+    .bottom-bar { padding:16px; gap:6px; }
+    .btn { padding:9px 14px; font-size:12px; }
+    .nav-brand { padding:10px 14px; font-size:10px; }
+    .nav-link { padding:10px 12px; font-size:10px; }
+  }
+</style>
+</head>
+<body>
+<div class="bg-gradient"></div>
+<div class="noise-overlay"></div>
+
+<div class="nav-bar">
+  <div class="nav-brand">RUBIK<span>'</span>S</div>
+  <div class="nav-links">
+    <a class="nav-link" href="index.html">3x3x3</a>
+      <a class="nav-link" href="4x4x4.html">4x4x4</a>
+      <a class="nav-link" href="5x5x5.html">5x5x5</a>
+      <a class="nav-link" href="6x6x6.html">6x6x6</a>
+      <a class="nav-link" href="7x7x7.html">7x7x7</a>
+      <a class="nav-link nav-active" href="8x8x8.html">8x8x8</a>
+      <a class="nav-link" href="15x15x15.html">15x15x15</a>
+  </div>
+</div>
+
+<div class="timer-block">
+  <div class="timer-value" id="timer">00:00.0</div>
+  <div class="move-count" id="moveCounter">0 moves</div>
+</div>
+
+<div class="instructions">
+  <div class="inst-item"><span class="inst-key">DRAG</span><span class="inst-desc">Rotate layer</span></div>
+  <div class="inst-item"><span class="inst-key">R-CLICK</span><span class="inst-desc">Orbit camera</span></div>
+  <div class="inst-item"><span class="inst-key">SCROLL</span><span class="inst-desc">Zoom</span></div>
+  <div class="inst-item"><span class="inst-key">KEYS</span><span class="inst-desc">U D R L F B</span></div>
+  <div class="inst-item"><span class="inst-key">SHIFT</span><span class="inst-desc">Inverse</span></div>
+  <div class="inst-item"><span class="inst-key">CTRL+Z</span><span class="inst-desc">Undo</span></div>
+</div>
+
+<div class="moves-panel" id="movesPanel"></div>
+<div class="history" id="historyBar"></div>
+
+<div class="bottom-bar">
+  <button class="btn primary" id="scrambleBtn" onclick="scrambleCube()">Scramble</button>
+  <button class="btn solve" id="solveBtn" onclick="solveCube()">Solve</button>
+  <button class="btn" onclick="resetCube()">Reset</button>
+  <button class="btn" onclick="undoMove()">Undo</button>
+</div>
+
+<div class="solved-overlay" id="solvedOverlay">
+  <div class="solved-badge">Congratulations</div>
+  <div class="solved-title">SOLVED</div>
+  <div class="solved-stats" id="solvedStats"></div>
+  <button class="btn primary" onclick="closeSolved()">Play Again</button>
+</div>
+
+<script>
+const N = 8;
+const HALF = (N-1)/2;
+const GAP = 1.025;
+const CUBIE_SIZE = 0.92;
+const STICKER_INSET = 0.83;
+const ANIM_DUR = 180;
+const SCRAMBLE_DUR = 20;
+const SOLVE_DUR = 45;
+const SCRAMBLE_COUNT = 120;
+
+
+const POSITIONS = [];
+for (let i = 0; i < N; i++) POSITIONS.push(i - HALF);
+
+
+const COL = { W:0xffffff, Y:0xffd500, G:0x009b48, B:0x0046ad, R:0xb71234, O:0xff5800, X:0x111122 };
+
+// Three.js setup
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.3;
+renderer.outputEncoding = THREE.sRGBEncoding;
+document.body.prepend(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const kl = new THREE.DirectionalLight(0xffffff, 0.75); kl.position.set(6,10,8); scene.add(kl);
+const fl = new THREE.DirectionalLight(0x8899cc, 0.3); fl.position.set(-8,3,-5); scene.add(fl);
+const pl = new THREE.PointLight(0x9b59b6, 0.4, 30); pl.position.set(0,-5,10); scene.add(pl);
+
+let cubies = [];
+const pivotGroup = new THREE.Group(); scene.add(pivotGroup);
+
+// Cubie creation
+function stickerCol(x,y,z,fi) {
+  const h=HALF, e=0.01;
+  if(fi===0&&Math.abs(x-h)<e) return COL.R;
+  if(fi===1&&Math.abs(x+h)<e) return COL.O;
+  if(fi===2&&Math.abs(y-h)<e) return COL.W;
+  if(fi===3&&Math.abs(y+h)<e) return COL.Y;
+  if(fi===4&&Math.abs(z-h)<e) return COL.G;
+  if(fi===5&&Math.abs(z+h)<e) return COL.B;
+  return COL.X;
+}
+
+function createCubie(x,y,z) {
+  const g=new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(CUBIE_SIZE,CUBIE_SIZE,CUBIE_SIZE), new THREE.MeshStandardMaterial({color:COL.X,roughness:0.85,metalness:0.1})));
+  const sg=new THREE.PlaneGeometry(STICKER_INSET,STICKER_INSET);
+  const faces=[{dir:[1,0,0],rot:[0,Math.PI/2,0],idx:0},{dir:[-1,0,0],rot:[0,-Math.PI/2,0],idx:1},{dir:[0,1,0],rot:[-Math.PI/2,0,0],idx:2},{dir:[0,-1,0],rot:[Math.PI/2,0,0],idx:3},{dir:[0,0,1],rot:[0,0,0],idx:4},{dir:[0,0,-1],rot:[0,Math.PI,0],idx:5}];
+  for(const f of faces){const c=stickerCol(x,y,z,f.idx);if(c===COL.X)continue;const s=new THREE.Mesh(sg,new THREE.MeshStandardMaterial({color:c,roughness:0.25,metalness:0.05}));s.position.set(f.dir[0]*(CUBIE_SIZE/2+0.005),f.dir[1]*(CUBIE_SIZE/2+0.005),f.dir[2]*(CUBIE_SIZE/2+0.005));s.rotation.set(f.rot[0],f.rot[1],f.rot[2]);g.add(s);}
+  g.position.set(x*GAP,y*GAP,z*GAP);
+  g.userData.pos=new THREE.Vector3(x,y,z);
+  scene.add(g); cubies.push(g);
+}
+
+function buildCube() {
+  cubies.forEach(c=>scene.remove(c)); cubies=[];
+  const minP=POSITIONS[0], maxP=POSITIONS[POSITIONS.length-1];
+  for(const x of POSITIONS) for(const y of POSITIONS) for(const z of POSITIONS) {
+    // For large cubes, skip internal cubies (they're invisible)
+    if(N>6) {
+      const isEdge = (Math.abs(x-minP)<0.01||Math.abs(x-maxP)<0.01||
+                      Math.abs(y-minP)<0.01||Math.abs(y-maxP)<0.01||
+                      Math.abs(z-minP)<0.01||Math.abs(z-maxP)<0.01);
+      if(!isEdge) continue;
+    }
+    createCubie(x,y,z);
+  }
+}
+
+// Move engine
+let isAnimating=false, moveHistory=[], moveCount=0;
+let timerRunning=false, timerStart=0, timerElapsed=0, isScrambled=false;
+let solving=false;
+
+function roundToLayer(v) {
+  let best=POSITIONS[0],bestD=999;
+  for(const p of POSITIONS){const d=Math.abs(v-p);if(d<bestD){bestD=d;best=p;}}
+  return best;
+}
+
+function getLayer(axis,val) {
+  return cubies.filter(c=>Math.abs(roundToLayer(c.userData.pos[axis])-val)<0.01);
+}
+
+function animateMove(axis,layerVal,dir,inv,callback,dur) {
+  if(isAnimating) return;
+  isAnimating=true;
+  const layer=getLayer(axis,layerVal);
+  pivotGroup.rotation.set(0,0,0);
+  layer.forEach(c=>pivotGroup.attach(c));
+  const angle=(Math.PI/2)*dir*(inv?-1:1);
+  const start=performance.now(), d=dur||ANIM_DUR;
+  function tick(now) {
+    let t=Math.min((now-start)/d,1);
+    t=t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+    pivotGroup.rotation[axis]=angle*t;
+    if((now-start)/d<1) requestAnimationFrame(tick);
+    else {
+      layer.forEach(c=>{
+        scene.attach(c);
+        c.position.x=roundToLayer(c.position.x/GAP)*GAP;
+        c.position.y=roundToLayer(c.position.y/GAP)*GAP;
+        c.position.z=roundToLayer(c.position.z/GAP)*GAP;
+        c.userData.pos.set(roundToLayer(c.position.x/GAP),roundToLayer(c.position.y/GAP),roundToLayer(c.position.z/GAP));
+      });
+      pivotGroup.rotation.set(0,0,0);isAnimating=false;
+      if(callback)callback();
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+
+const MOVE_DEFS = {U:{a:'y',v:3.5,d:-1}, y1:{a:'y',v:2.5,d:-1}, y2:{a:'y',v:1.5,d:-1}, y3:{a:'y',v:0.5,d:-1}, y4:{a:'y',v:-0.5,d:-1}, y5:{a:'y',v:-1.5,d:-1}, y6:{a:'y',v:-2.5,d:-1}, D:{a:'y',v:-3.5,d:1}, R:{a:'x',v:3.5,d:-1}, x1:{a:'x',v:2.5,d:-1}, x2:{a:'x',v:1.5,d:-1}, x3:{a:'x',v:0.5,d:-1}, x4:{a:'x',v:-0.5,d:-1}, x5:{a:'x',v:-1.5,d:-1}, x6:{a:'x',v:-2.5,d:-1}, L:{a:'x',v:-3.5,d:1}, F:{a:'z',v:3.5,d:-1}, z1:{a:'z',v:2.5,d:-1}, z2:{a:'z',v:1.5,d:-1}, z3:{a:'z',v:0.5,d:-1}, z4:{a:'z',v:-0.5,d:-1}, z5:{a:'z',v:-1.5,d:-1}, z6:{a:'z',v:-2.5,d:-1}, B:{a:'z',v:-3.5,d:1}};
+const ALL_MOVES = Object.keys(MOVE_DEFS);
+const MOVE_LABELS = {U:'U', y1:'y1', y2:'y2', y3:'y3', y4:'y4', y5:'y5', y6:'y6', D:'D', R:'R', x1:'x1', x2:'x2', x3:'x3', x4:'x4', x5:'x5', x6:'x6', L:'L', F:'F', z1:'z1', z2:'z2', z3:'z3', z4:'z4', z5:'z5', z6:'z6', B:'B'};
+const BUTTON_GROUPS = [
+  {label:'Y-Axis', moves:['U', 'y1', 'y2', 'y3', 'y4', 'y5', 'y6', 'D']},
+  {label:'X-Axis', moves:['R', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'L']},
+  {label:'Z-Axis', moves:['F', 'z1', 'z2', 'z3', 'z4', 'z5', 'z6', 'B']},
+];
+
+function doFaceMove(face,inv) {
+  const d=MOVE_DEFS[face];
+  if(d) doMoveByLayer(d.a,d.v,d.d,inv);
+}
+
+function doMoveByLayer(axis,layerVal,dir,inv,skipRecord,dur) {
+  if(isAnimating) return;
+  if(!timerRunning&&isScrambled&&!solving){timerRunning=true;timerStart=performance.now()-timerElapsed;}
+  animateMove(axis,layerVal,dir,inv,()=>{
+    if(!skipRecord){
+      moveHistory.push({axis,layerVal,dir,inv:!!inv});
+      moveCount++;updateUI();
+      checkSolved();
+    }
+  },dur);
+}
+
+function undoMove() {
+  if(isAnimating||!moveHistory.length||solving) return;
+  const last=moveHistory.pop(); moveCount++;
+  animateMove(last.axis,last.layerVal,last.dir,!last.inv,()=>{updateUI();addChip('undo');checkSolved();});
+}
+
+// Scramble
+function scrambleCube() {
+  if(isAnimating||solving) return;
+  resetCube();
+  setTimeout(()=>{
+    const moves=[]; let prev='';
+    for(let i=0;i<SCRAMBLE_COUNT;i++){
+      let f;do{f=ALL_MOVES[Math.floor(Math.random()*ALL_MOVES.length)];}while(f===prev);prev=f;
+      moves.push({face:f,inv:Math.random()>0.5});
+    }
+    let i=0;
+    function next(){
+      if(i>=moves.length){isScrambled=true;return;}
+      const m=moves[i++],def=MOVE_DEFS[m.face];
+      // Record during scramble so solve can reverse
+      animateMove(def.a,def.v,def.d,m.inv,()=>{
+        moveHistory.push({axis:def.a,layerVal:def.v,dir:def.d,inv:m.inv});
+        next();
+      },SCRAMBLE_DUR);
+    }
+    next();
+  },80);
+}
+
+// Solve — reverse all moves in history
+function solveCube() {
+  if(isAnimating||!moveHistory.length||solving) return;
+  solving=true;
+  timerRunning=false;
+  document.getElementById('solveBtn').disabled=true;
+  document.getElementById('scrambleBtn').disabled=true;
+
+  const reversedMoves=[...moveHistory].reverse();
+  moveHistory=[];
+  let i=0;
+  function next(){
+    if(i>=reversedMoves.length){
+      solving=false;
+      isScrambled=false;
+      moveCount=0;
+      moveHistory=[];
+      updateUI();
+      document.getElementById('historyBar').innerHTML='';
+      document.getElementById('scrambleBtn').disabled=false;
+      document.getElementById('solveBtn').disabled=false;
+      return;
+    }
+    const m=reversedMoves[i++];
+    animateMove(m.axis,m.layerVal,m.dir,!m.inv,()=>{
+      addChip('~');
+      next();
+    },SOLVE_DUR);
+  }
+  next();
+}
+
+function resetCube() {
+  if(isAnimating||solving) return;
+  buildCube();moveHistory=[];moveCount=0;timerRunning=false;timerElapsed=0;isScrambled=false;solving=false;
+  updateUI();updateTimerDisplay(0);
+  document.getElementById('historyBar').innerHTML='';
+  document.getElementById('scrambleBtn').disabled=false;
+}
+
+// Solve check
+function checkSolved() {
+  if(!isScrambled||solving) return;
+  const checks=[
+    {axis:'y',val:HALF,norm:new THREE.Vector3(0,1,0)},{axis:'y',val:-HALF,norm:new THREE.Vector3(0,-1,0)},
+    {axis:'x',val:HALF,norm:new THREE.Vector3(1,0,0)},{axis:'x',val:-HALF,norm:new THREE.Vector3(-1,0,0)},
+    {axis:'z',val:HALF,norm:new THREE.Vector3(0,0,1)},{axis:'z',val:-HALF,norm:new THREE.Vector3(0,0,-1)},
+  ];
+  for(const chk of checks){
+    const layer=getLayer(chk.axis,chk.val);const colors=new Set();
+    for(const cubie of layer){for(let si=1;si<cubie.children.length;si++){const st=cubie.children[si];const wd=st.position.clone().normalize().applyQuaternion(cubie.quaternion);if(wd.dot(chk.norm)>0.5)colors.add(st.material.color.getHex());}}
+    if(colors.size>1) return;
+  }
+  timerRunning=false;isScrambled=false;showSolved();
+}
+
+// UI
+function updateTimerDisplay(ms){const s=ms/1000,m=Math.floor(s/60),sec=Math.floor(s%60),t=Math.floor((s*10)%10);document.getElementById('timer').textContent=String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0')+'.'+t;}
+function updateUI(){document.getElementById('moveCounter').textContent=moveCount+' move'+(moveCount!==1?'s':'');}
+function addChip(l){const b=document.getElementById('historyBar'),e=document.createElement('div');e.className='history-chip';e.textContent=l;b.appendChild(e);b.scrollLeft=b.scrollWidth;}
+function showSolved(){document.getElementById('solvedStats').textContent=document.getElementById('timer').textContent+'  ·  '+moveCount+' moves';document.getElementById('solvedOverlay').classList.add('show');}
+function closeSolved(){document.getElementById('solvedOverlay').classList.remove('show');}
+
+// Build move buttons
+(function(){
+  const panel=document.getElementById('movesPanel');
+  for(const g of BUTTON_GROUPS){
+    const lbl=document.createElement('div');lbl.className='moves-section-label';lbl.textContent=g.label;panel.appendChild(lbl);
+    for(const mv of g.moves){
+      const row=document.createElement('div');row.className='move-pair';
+      const b1=document.createElement('button');b1.className='mbtn';b1.textContent=MOVE_LABELS[mv]||mv;b1.onclick=()=>doFaceMove(mv,false);
+      const b2=document.createElement('button');b2.className='mbtn';b2.textContent=(MOVE_LABELS[mv]||mv)+"'";b2.onclick=()=>doFaceMove(mv,true);
+      row.appendChild(b1);row.appendChild(b2);panel.appendChild(row);
+    }
+  }
+})();
+
+// Camera
+let orbitTheta=Math.PI/4,orbitPhi=Math.PI/5.5,orbitRadius=18.5;
+let orbiting=false,orbitPrev={x:0,y:0};
+function updateCamera(){camera.position.set(orbitRadius*Math.cos(orbitPhi)*Math.sin(orbitTheta),orbitRadius*Math.sin(orbitPhi),orbitRadius*Math.cos(orbitPhi)*Math.cos(orbitTheta));camera.lookAt(0,0,0);}
+updateCamera();
+
+// Drag interaction
+const raycaster=new THREE.Raycaster(),mouse2=new THREE.Vector2();
+let dragState=null;
+
+function onPointerDown(e){
+  if(isAnimating||solving) return;
+  if(e.button===2||e.button===1){orbiting=true;orbitPrev={x:e.clientX,y:e.clientY};return;}
+  mouse2.x=(e.clientX/innerWidth)*2-1;mouse2.y=-(e.clientY/innerHeight)*2+1;
+  raycaster.setFromCamera(mouse2,camera);
+  const hits=raycaster.intersectObjects(cubies,true);
+  if(hits.length>0){let h=hits[0].object;while(h.parent&&!h.userData.pos)h=h.parent;if(h.userData.pos)dragState={startX:e.clientX,startY:e.clientY,cubie:h,faceNormal:hits[0].face.normal.clone().applyQuaternion(hits[0].object.getWorldQuaternion(new THREE.Quaternion())).round()};}
+  else{orbiting=true;orbitPrev={x:e.clientX,y:e.clientY};}
+}
+
+function onPointerMove(e){
+  if(orbiting){orbitTheta-=(e.clientX-orbitPrev.x)*0.005;orbitPhi=Math.max(-1.2,Math.min(1.2,orbitPhi+(e.clientY-orbitPrev.y)*0.005));updateCamera();orbitPrev={x:e.clientX,y:e.clientY};return;}
+  if(!dragState||isAnimating||solving) return;
+  const dx=e.clientX-dragState.startX,dy=e.clientY-dragState.startY;
+  if(Math.sqrt(dx*dx+dy*dy)>25){
+    const move=determineDrag(dragState.cubie,dragState.faceNormal,dx,dy);
+    dragState=null;
+    if(move)doMoveByLayer(move.axis,move.layerVal,move.dir,move.inv);
+  }
+}
+
+function onPointerUp(){orbiting=false;dragState=null;}
+
+function determineDrag(cubie,fn,dx,dy){
+  const pos=cubie.userData.pos;
+  // Get ACTUAL camera right and up vectors from world matrix (not camera.up which is just a hint)
+  const m=camera.matrixWorld.elements;
+  const camRight=new THREE.Vector3(m[0],m[1],m[2]).normalize();
+  const camUp=new THREE.Vector3(m[4],m[5],m[6]).normalize();
+  // Convert screen drag to world-space direction
+  const dragWorld=new THREE.Vector3().addScaledVector(camRight,dx).addScaledVector(camUp,-dy).normalize();
+  // Cross product: face normal x drag = rotation axis with correct sign (right-hand rule)
+  const rotVec=new THREE.Vector3().crossVectors(fn,dragWorld);
+  // Find which world axis this rotation aligns with
+  const axes=[{v:new THREE.Vector3(1,0,0),l:'x'},{v:new THREE.Vector3(0,1,0),l:'y'},{v:new THREE.Vector3(0,0,1),l:'z'}];
+  let bestAxis=null,bestDot=0;
+  for(const a of axes){const d=rotVec.dot(a.v);if(Math.abs(d)>Math.abs(bestDot)){bestDot=d;bestAxis=a;}}
+  if(!bestAxis||Math.abs(bestDot)<0.15)return null;
+  const al=bestAxis.l;
+  const layerVal=roundToLayer(pos[al]);
+  // bestDot sign directly maps to rotation direction - no extra flipping needed
+  const dir=bestDot>0?1:-1;
+  return {axis:al,layerVal,dir,inv:false};
+}
+
+renderer.domElement.addEventListener('pointerdown',onPointerDown);
+renderer.domElement.addEventListener('pointermove',onPointerMove);
+renderer.domElement.addEventListener('pointerup',onPointerUp);
+renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
+renderer.domElement.addEventListener('wheel',e=>{orbitRadius=Math.max(5,Math.min(55,orbitRadius+e.deltaY*0.02));updateCamera();});
+
+let touchState=null;
+renderer.domElement.addEventListener('touchstart',e=>{e.preventDefault();
+  if(e.touches.length===1){touchState={type:'drag'};const t=e.touches[0];onPointerDown({clientX:t.clientX,clientY:t.clientY,button:0});}
+  else if(e.touches.length===2){onPointerUp();const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);touchState={type:'pinch',dist:d};}
+},{passive:false});
+renderer.domElement.addEventListener('touchmove',e=>{e.preventDefault();
+  if(e.touches.length===1&&touchState&&touchState.type==='drag')onPointerMove({clientX:e.touches[0].clientX,clientY:e.touches[0].clientY});
+  else if(e.touches.length===2&&touchState&&touchState.type==='pinch'){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);orbitRadius=Math.max(5,Math.min(55,orbitRadius-(d-touchState.dist)*0.06));updateCamera();touchState.dist=d;}
+},{passive:false});
+renderer.domElement.addEventListener('touchend',e=>{if(e.touches.length===0){onPointerUp();touchState=null;}else if(e.touches.length===1){touchState={type:'drag'};}
+});
+
+document.addEventListener('keydown',e=>{
+  if(isAnimating||solving) return;
+  const sh=e.shiftKey,k=e.key.toLowerCase();
+  if(k==='u'&&!e.ctrlKey)doFaceMove('U',sh);
+  else if(k==='d'&&!e.ctrlKey)doFaceMove('D',sh);
+  else if(k==='r'&&!e.ctrlKey)doFaceMove('R',sh);
+  else if(k==='l'&&!e.ctrlKey)doFaceMove('L',sh);
+  else if(k==='f'&&!e.ctrlKey)doFaceMove('F',sh);
+  else if(k==='b'&&!e.ctrlKey)doFaceMove('B',sh);
+  else if(k==='z'&&(e.ctrlKey||e.metaKey))undoMove();
+  else if(k===' ')scrambleCube();
+});
+
+// Loop
+function animate(){
+  requestAnimationFrame(animate);
+  if(timerRunning){timerElapsed=performance.now()-timerStart;updateTimerDisplay(timerElapsed);}
+  renderer.render(scene,camera);
+}
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+
+buildCube(); animate();
+</script>
+</body>
+</html>
