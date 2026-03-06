@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rubik's Cube - Cubic Universe</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --accent: #6c5ce7;
+      --accent-glow: rgba(108, 92, 231, 0.35);
+      --bg: #08080c;
+      --surface: rgba(255, 255, 255, 0.04);
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #e4e2df;
+      --text-dim: rgba(255, 255, 255, 0.35);
+      --text-muted: rgba(255, 255, 255, 0.18);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Sora', sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      cursor: grab;
+    }
+
+    body:active {
+      cursor: grabbing;
+    }
+
+    canvas {
+      display: block;
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+
+    .bg-gradient {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse 60% 50% at 50% 45%, rgba(108, 92, 231, 0.06) 0%, transparent 70%), radial-gradient(ellipse 40% 35% at 30% 60%, rgba(108, 92, 231, 0.03) 0%, transparent 60%);
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .noise-overlay {
+      position: fixed;
+      inset: 0;
+      opacity: 0.025;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* Nav bar */
+    .nav-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      padding: 0;
+      z-index: 20;
+      background: rgba(8, 8, 12, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-brand {
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.5);
+      padding: 14px 24px;
+      margin-right: auto;
+    }
+
+    .nav-brand span {
+      color: var(--accent);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 0;
+      margin-right: auto;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .nav-links::-webkit-scrollbar {
+      display: none;
+    }
+
+    .nav-link {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-dim);
+      text-decoration: none;
+      padding: 14px 14px;
+      letter-spacing: 1px;
+      transition: all 0.2s;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+    }
+
+    .nav-link:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .nav-link.nav-active {
+      color: #fff;
+      border-bottom-color: var(--accent);
+    }
+
+    /* Bottom action bar */
+    .bottom-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      padding: 20px 32px;
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    .btn {
+      padding: 11px 26px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+      color: var(--text);
+      font-family: 'Sora', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      pointer-events: auto;
+      letter-spacing: 0.3px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .btn:hover {
+      background: rgba(108, 92, 231, 0.15);
+      border-color: rgba(108, 92, 231, 0.4);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(108, 92, 231, 0.15);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .btn.primary {
+      background: linear-gradient(135deg, var(--accent), rgba(108, 92, 231, 0.75));
+      border-color: transparent;
+      color: #fff;
+    }
+
+    .btn.primary:hover {
+      box-shadow: 0 6px 28px rgba(108, 92, 231, 0.4);
+    }
+
+    .btn.solve {
+      background: linear-gradient(135deg, #27ae60, #2ecc71);
+      border-color: transparent;
+      color: #fff;
+    }
+
+    .btn.solve:hover {
+      box-shadow: 0 6px 28px rgba(46, 204, 113, 0.4);
+    }
+
+    .btn:disabled {
+      opacity: 0.35;
+      pointer-events: none;
+      transform: none;
+    }
+
+    .hint {
+      position: fixed;
+      bottom: 68px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .hint-item {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .hint-key {
+      font-size: 9px;
+      color: rgba(255, 255, 255, 0.4);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 5px;
+    }
+
+    @media (max-width:768px) {
+      .nav-brand {
+        padding: 10px 14px;
+        font-size: 10px;
+      }
+
+      .nav-link {
+        padding: 10px 12px;
+        font-size: 10px;
+      }
+
+      .hint {
+        display: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="bg-gradient"></div>
+  <div class="noise-overlay"></div>
+
+  <div class="nav-bar">
+    <div class="nav-brand">RUBIK<span>'</span>S</div>
+    <div class="nav-links">
+      <a class="nav-link" href="index.html">3x3x3</a>
+      <a class="nav-link" href="4x4x4.html">4x4x4</a>
+      <a class="nav-link" href="5x5x5.html">5x5x5</a>
+      <a class="nav-link" href="6x6x6.html">6x6x6</a>
+      <a class="nav-link" href="7x7x7.html">7x7x7</a>
+      <a class="nav-link" href="8x8x8.html">8x8x8</a>
+      <a class="nav-link" href="15x15x15.html">15x15x15</a>
+      <a class="nav-link" href="megaminx.html">Megaminx</a>
+      <a class="nav-link nav-active" href="universe.html">Universe</a>
+    </div>
+  </div>
+
+  <div class="hint" id="hint">
+    <div class="hint-item"><span class="hint-key">CLICK</span> zoom into cube</div>
+    <div class="hint-item"><span class="hint-key">DRAG</span> rotate camera</div>
+    <div class="hint-item"><span class="hint-key">ESC</span> overview</div>
+    <div class="hint-item"><span class="hint-key">SCROLL</span> zoom</div>
+    <div class="hint-item"><span class="hint-key">RIGHT-DRAG</span> rotate view (zoomed)</div>
+  </div>
+
+  <div class="bottom-bar">
+    <button class="btn primary" id="scrambleBtn" onclick="scrambleAll()">Scramble All</button>
+    <button class="btn solve" id="solveBtn" onclick="solveAll()" disabled>Solve All</button>
+  </div>
+
+  <script>
+    // ─── Constants ────────────────────────────────────────────────────────────────
+    const GAP = 1.04;
+    const CUBIE_SIZE = 0.96;
+    const STICKER_INSET = 0.84;
+    const ANIM_DUR = 180;
+    const COL = { W: 0xffffff, Y: 0xffd500, G: 0x009b48, B: 0x0046ad, R: 0xb71234, O: 0xff5800, X: 0x111122 };
+
+    // ─── Three.js scene ───────────────────────────────────────────────────────────
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x050505);
+    const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.3;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    document.body.prepend(renderer.domElement);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    const kl = new THREE.DirectionalLight(0xffffff, 0.75); kl.position.set(6, 10, 8); scene.add(kl);
+    const fl = new THREE.DirectionalLight(0x8899cc, 0.3); fl.position.set(-8, 3, -5); scene.add(fl);
+    const pl = new THREE.PointLight(0x6c5ce7, 0.4, 30); pl.position.set(0, -5, 10); scene.add(pl);
+
+    // ─── CubeInstance class ───────────────────────────────────────────────────────
+    class CubeInstance {
+      constructor(N) {
+        this.N = N;
+        this.HALF = (N - 1) / 2;
+        this.POSITIONS = [];
+        for (let i = 0; i < N; i++) this.POSITIONS.push(i - this.HALF);
+
+        this.group = new THREE.Group();
+        scene.add(this.group);
+
+        this.pivotGroup = new THREE.Group();
+        scene.add(this.pivotGroup);
+
+        this.cubies = [];
+        this.isAnimating = false;
+        this.moveHistory = [];
+        this.isScrambled = false;
+        this.solving = false;
+
+        const h = this.HALF;
+        this.MOVE_DEFS = {
+          U: { a: 'y', v: h, d: -1 }, D: { a: 'y', v: -h, d: 1 },
+          R: { a: 'x', v: h, d: -1 }, L: { a: 'x', v: -h, d: 1 },
+          F: { a: 'z', v: h, d: -1 }, B: { a: 'z', v: -h, d: 1 },
+          M: { a: 'x', v: 0, d: 1 }, E: { a: 'y', v: 0, d: 1 }, S: { a: 'z', v: 0, d: -1 },
+        };
+        this.ALL_MOVES = Object.keys(this.MOVE_DEFS);
+      }
+
+      stickerCol(x, y, z, fi) {
+        const h = this.HALF, e = 0.01;
+        if (fi === 0 && Math.abs(x - h) < e) return COL.R;
+        if (fi === 1 && Math.abs(x + h) < e) return COL.O;
+        if (fi === 2 && Math.abs(y - h) < e) return COL.W;
+        if (fi === 3 && Math.abs(y + h) < e) return COL.Y;
+        if (fi === 4 && Math.abs(z - h) < e) return COL.G;
+        if (fi === 5 && Math.abs(z + h) < e) return COL.B;
+        return COL.X;
+      }
+
+      createCubie(x, y, z) {
+        const g = new THREE.Group();
+        g.add(new THREE.Mesh(
+          new THREE.BoxGeometry(CUBIE_SIZE, CUBIE_SIZE, CUBIE_SIZE),
+          new THREE.MeshStandardMaterial({ color: COL.X, roughness: 0.85, metalness: 0.1 })
+        ));
+        const sg = new THREE.PlaneGeometry(STICKER_INSET, STICKER_INSET);
+        const faces = [
+          { dir: [1, 0, 0], rot: [0, Math.PI / 2, 0], idx: 0 },
+          { dir: [-1, 0, 0], rot: [0, -Math.PI / 2, 0], idx: 1 },
+          { dir: [0, 1, 0], rot: [-Math.PI / 2, 0, 0], idx: 2 },
+          { dir: [0, -1, 0], rot: [Math.PI / 2, 0, 0], idx: 3 },
+          { dir: [0, 0, 1], rot: [0, 0, 0], idx: 4 },
+          { dir: [0, 0, -1], rot: [0, Math.PI, 0], idx: 5 },
+        ];
+        for (const f of faces) {
+          const c = this.stickerCol(x, y, z, f.idx);
+          if (c === COL.X) continue;
+          const s = new THREE.Mesh(sg, new THREE.MeshStandardMaterial({ color: c, roughness: 0.25, metalness: 0.05 }));
+          s.position.set(f.dir[0] * (CUBIE_SIZE / 2 + 0.005), f.dir[1] * (CUBIE_SIZE / 2 + 0.005), f.dir[2] * (CUBIE_SIZE / 2 + 0.005));
+          s.rotation.set(f.rot[0], f.rot[1], f.rot[2]);
+          g.add(s);
+        }
+        g.position.set(x * GAP, y * GAP, z * GAP);
+        g.userData.pos = new THREE.Vector3(x, y, z);
+        g.frustumCulled = true;
+        this.group.add(g);
+        this.cubies.push(g);
+      }
+
+      build() {
+        this.cubies.forEach(c => this.group.remove(c));
+        this.cubies = [];
+        const minP = this.POSITIONS[0], maxP = this.POSITIONS[this.POSITIONS.length - 1];
+        for (const x of this.POSITIONS) for (const y of this.POSITIONS) for (const z of this.POSITIONS) {
+          if (this.N > 6) {
+            const isEdge = (Math.abs(x - minP) < 0.01 || Math.abs(x - maxP) < 0.01 ||
+              Math.abs(y - minP) < 0.01 || Math.abs(y - maxP) < 0.01 ||
+              Math.abs(z - minP) < 0.01 || Math.abs(z - maxP) < 0.01);
+            if (!isEdge) continue;
+          }
+          this.createCubie(x, y, z);
+        }
+      }
+
+      roundToLayer(v) {
+        let best = this.POSITIONS[0], bestD = 999;
+        for (const p of this.POSITIONS) { const d = Math.abs(v - p); if (d < bestD) { bestD = d; best = p; } }
+        return best;
+      }
+
+      getLayer(axis, val) {
+        return this.cubies.filter(c => Math.abs(this.roundToLayer(c.userData.pos[axis]) - val) < 0.01);
+      }
+
+      animateMove(axis, layerVal, dir, inv, callback, dur) {
+        if (this.isAnimating) return;
+        this.isAnimating = true;
+        const layer = this.getLayer(axis, layerVal);
+        // Position the pivotGroup at this cube's world center so rotation
+        // happens around the correct axis (not the scene origin).
+        const worldCenter = new THREE.Vector3();
+        this.group.getWorldPosition(worldCenter);
+        this.pivotGroup.position.copy(worldCenter);
+        this.pivotGroup.rotation.set(0, 0, 0);
+        layer.forEach(c => this.pivotGroup.attach(c));
+        const angle = (Math.PI / 2) * dir * (inv ? -1 : 1);
+        const duration = dur !== undefined ? dur : ANIM_DUR;
+        const start = performance.now();
+        const tick = (now) => {
+          let t = Math.min((now - start) / duration, 1);
+          t = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+          this.pivotGroup.rotation[axis] = angle * t;
+          if ((now - start) / duration < 1) {
+            requestAnimationFrame(tick);
+          } else {
+            layer.forEach(c => {
+              this.group.attach(c);
+              c.position.x = this.roundToLayer(c.position.x / GAP) * GAP;
+              c.position.y = this.roundToLayer(c.position.y / GAP) * GAP;
+              c.position.z = this.roundToLayer(c.position.z / GAP) * GAP;
+              c.userData.pos.set(
+                this.roundToLayer(c.position.x / GAP),
+                this.roundToLayer(c.position.y / GAP),
+                this.roundToLayer(c.position.z / GAP)
+              );
+            });
+            this.pivotGroup.rotation.set(0, 0, 0);
+            this.pivotGroup.position.set(0, 0, 0);
+            this.isAnimating = false;
+            if (callback) callback();
+          }
+        };
+        requestAnimationFrame(tick);
+      }
+
+      doMoveByLayer(axis, layerVal, dir, inv, skipRecord, dur) {
+        if (this.isAnimating) return;
+        this.animateMove(axis, layerVal, dir, inv, () => {
+          if (!skipRecord) this.moveHistory.push({ axis, layerVal, dir, inv: !!inv });
+        }, dur);
+      }
+
+      // ── Scramble: run N random moves sequentially ───────────────────────────
+      scramble(onDone) {
+        if (this.isAnimating || this.solving) return;
+        // Reset to clean state first
+        this.build();
+        this.moveHistory = [];
+        this.isScrambled = false;
+        this.solving = false;
+        const SCRAMBLE_COUNT = Math.min(20 + this.N * 2, 35);
+        const SCRAMBLE_DUR = Math.max(35, 80 - this.N * 2);
+        const moves = [];
+        let prev = '';
+        for (let i = 0; i < SCRAMBLE_COUNT; i++) {
+          let f;
+          do { f = this.ALL_MOVES[Math.floor(Math.random() * this.ALL_MOVES.length)]; } while (f === prev);
+          prev = f;
+          moves.push({ face: f, inv: Math.random() > 0.5 });
+        }
+        let i = 0;
+        const next = () => {
+          if (i >= moves.length) {
+            this.isScrambled = true;
+            if (onDone) onDone();
+            return;
+          }
+          const m = moves[i++], def = this.MOVE_DEFS[m.face];
+          this.animateMove(def.a, def.v, def.d, m.inv, () => {
+            this.moveHistory.push({ axis: def.a, layerVal: def.v, dir: def.d, inv: m.inv });
+            next();
+          }, SCRAMBLE_DUR);
+        };
+        next();
+      }
+
+      // ── Solve: replay move history in reverse ───────────────────────────────
+      solve(onDone) {
+        if (this.isAnimating || this.solving || !this.moveHistory.length) {
+          if (onDone) onDone();
+          return;
+        }
+        this.solving = true;
+        const SOLVE_DUR = Math.max(40, 100 - this.N * 2);
+        const reversedMoves = [...this.moveHistory].reverse();
+        this.moveHistory = [];
+        let i = 0;
+        const next = () => {
+          if (i >= reversedMoves.length) {
+            this.solving = false;
+            this.isScrambled = false;
+            if (onDone) onDone();
+            return;
+          }
+          const m = reversedMoves[i++];
+          this.animateMove(m.axis, m.layerVal, m.dir, !m.inv, next, SOLVE_DUR);
+        };
+        next();
+      }
+    }
+
+    // ─── Universe setup ───────────────────────────────────────────────────────────
+    const universeCubes = [
+      { N: 3, position: [0, 0, 0] },
+      { N: 4, position: [-18, 7, -5] },
+      { N: 5, position: [16, -3, -9] },
+      { N: 6, position: [-10, -11, 15] },
+      { N: 7, position: [14, 12, 11] },
+      { N: 8, position: [7, -17, -16] },
+      { N: 15, position: [-28, 14, -22] },
+    ];
+
+    const universeGroup = new THREE.Group();
+    const universeInstances = [];
+    scene.add(universeGroup);
+
+    for (const cfg of universeCubes) {
+      const inst = new CubeInstance(cfg.N);
+      inst.build();
+      scene.remove(inst.group);
+      inst.group.position.set(cfg.position[0], cfg.position[1], cfg.position[2]);
+      inst.group.frustumCulled = true;
+      universeGroup.add(inst.group);
+      universeInstances.push(inst);
+    }
+
+    // ─── Camera ───────────────────────────────────────────────────────────────────
+    camera.position.set(0, 10, 80);
+    camera.lookAt(0, 0, 0);
+
+    let universeZoom = 80; // distance from origin for scroll zoom in overview
+
+    // ─── Prezi Navigation ─────────────────────────────────────────────────────────
+    let preziFlyActive = false;
+    let preziZoomedIn = false;
+    let preziLookAt = new THREE.Vector3(0, 0, 0);
+    let preziTargetInst = null;
+
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function lerpCamera(endPos, endLook, duration, onDone) {
+      if (preziFlyActive) return;
+      preziFlyActive = true;
+      const startPos = camera.position.clone();
+      const startLook = preziLookAt.clone();
+      const t0 = performance.now();
+      (function tick(now) {
+        const raw = Math.min((now - t0) / duration, 1);
+        const t = easeInOutCubic(raw);
+        camera.position.lerpVectors(startPos, endPos, t);
+        preziLookAt.lerpVectors(startLook, endLook, t);
+        camera.lookAt(preziLookAt);
+        if (raw < 1) { requestAnimationFrame(tick); }
+        else { preziFlyActive = false; if (onDone) onDone(); }
+      })(t0);
+    }
+
+    function flyToCube(inst) {
+      const center = new THREE.Vector3();
+      inst.group.getWorldPosition(center);
+      const dir = camera.position.clone().sub(center).normalize();
+      const dist = Math.max(15, inst.N * 2.2);
+      const endPos = center.clone().addScaledVector(dir, dist);
+      lerpCamera(endPos, center, 1500, () => {
+        preziZoomedIn = true;
+        preziTargetInst = inst;
+      });
+    }
+
+    function flyBack() {
+      preziZoomedIn = false;
+      preziTargetInst = null;
+      lerpCamera(new THREE.Vector3(0, 10, universeZoom), new THREE.Vector3(0, 0, 0), 1500);
+    }
+
+    // ─── Pointer interaction ──────────────────────────────────────────────────────
+    const raycaster = new THREE.Raycaster();
+    const mouse2 = new THREE.Vector2();
+    let dragState = null;
+    let orbiting = false;
+    let orbitPrev = { x: 0, y: 0 };
+    let zoomedOrbit = false;
+    let zoomedOrbitPrev = { x: 0, y: 0 };
+
+    renderer.domElement.addEventListener('click', function (e) {
+      if (preziFlyActive || preziZoomedIn) return;
+      mouse2.x = (e.clientX / innerWidth) * 2 - 1;
+      mouse2.y = (e.clientY / innerHeight) * -2 + 1;
+      raycaster.setFromCamera(mouse2, camera);
+      const allCubies = universeInstances.flatMap(i => i.cubies);
+      const hits = raycaster.intersectObjects(allCubies, true);
+      if (!hits.length) return;
+      let h = hits[0].object;
+      while (h.parent && !h.userData.pos) h = h.parent;
+      const inst = universeInstances.find(i => i.cubies.includes(h));
+      if (inst) flyToCube(inst);
+    });
+
+    renderer.domElement.addEventListener('pointerdown', function (e) {
+      // Right-click / middle-click: orbit in any mode
+      if (e.button === 2 || e.button === 1) {
+        if (preziZoomedIn && !preziFlyActive) {
+          zoomedOrbit = true; zoomedOrbitPrev = { x: e.clientX, y: e.clientY };
+        } else {
+          orbiting = true; orbitPrev = { x: e.clientX, y: e.clientY };
+        }
+        return;
+      }
+      // Left-click on background in overview → orbit camera
+      if (e.button === 0 && !preziZoomedIn && !preziFlyActive) { orbiting = true; orbitPrev = { x: e.clientX, y: e.clientY }; return; }
+      if (!preziZoomedIn || !preziTargetInst) return;
+      if (preziTargetInst.isAnimating) return;
+      mouse2.x = (e.clientX / innerWidth) * 2 - 1; mouse2.y = -(e.clientY / innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse2, camera);
+      const hits = raycaster.intersectObjects(preziTargetInst.cubies, true);
+      if (hits.length > 0) {
+        let h = hits[0].object;
+        while (h.parent && !h.userData.pos) h = h.parent;
+        if (h.userData.pos)
+          dragState = {
+            startX: e.clientX, startY: e.clientY, cubie: h,
+            faceNormal: hits[0].face.normal.clone()
+              .applyQuaternion(hits[0].object.getWorldQuaternion(new THREE.Quaternion())).round()
+          };
+      } else {
+        // Left-click on empty background while zoomed in → orbit
+        zoomedOrbit = true; zoomedOrbitPrev = { x: e.clientX, y: e.clientY };
+      }
+    });
+
+    renderer.domElement.addEventListener('pointermove', function (e) {
+      // Orbit around zoomed-in cube
+      if (zoomedOrbit && preziZoomedIn && !preziFlyActive) {
+        const dx = e.clientX - zoomedOrbitPrev.x;
+        const dy = e.clientY - zoomedOrbitPrev.y;
+        // Camera offset relative to the lookAt target (cube center)
+        const offset = camera.position.clone().sub(preziLookAt);
+        const spherical = new THREE.Spherical().setFromVector3(offset);
+        spherical.theta -= dx * 0.006;
+        spherical.phi = Math.max(0.3, Math.min(Math.PI - 0.3, spherical.phi + dy * 0.006));
+        offset.setFromSpherical(spherical);
+        camera.position.copy(preziLookAt).add(offset);
+        camera.lookAt(preziLookAt);
+        zoomedOrbitPrev = { x: e.clientX, y: e.clientY };
+        return;
+      }
+      if (orbiting && !preziZoomedIn && !preziFlyActive) {
+        // Simple orbit around origin in overview
+        const dx = e.clientX - orbitPrev.x;
+        const dy = e.clientY - orbitPrev.y;
+        const spherical = new THREE.Spherical().setFromVector3(camera.position);
+        spherical.theta -= dx * 0.005;
+        spherical.phi = Math.max(0.2, Math.min(Math.PI - 0.2, spherical.phi + dy * 0.005));
+        camera.position.setFromSpherical(spherical);
+        camera.lookAt(preziLookAt);
+        orbitPrev = { x: e.clientX, y: e.clientY };
+        return;
+      }
+      if (!dragState || !preziTargetInst || preziTargetInst.isAnimating) return;
+      const dx = e.clientX - dragState.startX, dy = e.clientY - dragState.startY;
+      if (Math.sqrt(dx * dx + dy * dy) > 25) {
+        const move = determineDrag(dragState.cubie, dragState.faceNormal, dx, dy);
+        dragState = null;
+        if (move) preziTargetInst.doMoveByLayer(move.axis, move.layerVal, move.dir, move.inv);
+      }
+    });
+
+    renderer.domElement.addEventListener('pointerup', () => { orbiting = false; zoomedOrbit = false; dragState = null; });
+    renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
+    renderer.domElement.addEventListener('wheel', e => {
+      if (preziZoomedIn || preziFlyActive) return;
+      universeZoom = Math.max(15, Math.min(180, universeZoom + e.deltaY * 0.05));
+      const spherical = new THREE.Spherical().setFromVector3(camera.position);
+      spherical.radius = universeZoom;
+      camera.position.setFromSpherical(spherical);
+      camera.lookAt(preziLookAt);
+    });
+
+    function determineDrag(cubie, fn, dx, dy) {
+      const pos = cubie.userData.pos;
+      const m = camera.matrixWorld.elements;
+      const camRight = new THREE.Vector3(m[0], m[1], m[2]).normalize();
+      const camUp = new THREE.Vector3(m[4], m[5], m[6]).normalize();
+      const dragWorld = new THREE.Vector3().addScaledVector(camRight, dx).addScaledVector(camUp, -dy).normalize();
+      const rotVec = new THREE.Vector3().crossVectors(fn, dragWorld);
+      const axes = [
+        { v: new THREE.Vector3(1, 0, 0), l: 'x' },
+        { v: new THREE.Vector3(0, 1, 0), l: 'y' },
+        { v: new THREE.Vector3(0, 0, 1), l: 'z' },
+      ];
+      let bestAxis = null, bestDot = 0;
+      for (const a of axes) { const d = rotVec.dot(a.v); if (Math.abs(d) > Math.abs(bestDot)) { bestDot = d; bestAxis = a; } }
+      if (!bestAxis || Math.abs(bestDot) < 0.15) return null;
+      const al = bestAxis.l;
+      const layerVal = preziTargetInst.roundToLayer(pos[al]);
+      const dir = bestDot > 0 ? 1 : -1;
+      return { axis: al, layerVal, dir, inv: false };
+    }
+
+    // ─── Touch ────────────────────────────────────────────────────────────────────
+    let touchState = null;
+    renderer.domElement.addEventListener('touchstart', e => {
+      e.preventDefault();
+      if (e.touches.length === 1) {
+        touchState = { type: 'drag' }; const t = e.touches[0];
+        renderer.domElement.dispatchEvent(new PointerEvent('pointerdown', { clientX: t.clientX, clientY: t.clientY, button: 0 }));
+      } else if (e.touches.length === 2) {
+        touchState = { type: 'pinch', dist: Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY) };
+      }
+    }, { passive: false });
+    renderer.domElement.addEventListener('touchmove', e => {
+      e.preventDefault();
+      if (e.touches.length === 1 && touchState?.type === 'drag')
+        renderer.domElement.dispatchEvent(new PointerEvent('pointermove', { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY }));
+      else if (e.touches.length === 2 && touchState?.type === 'pinch') {
+        const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        if (preziZoomedIn && !preziFlyActive) {
+          // Two-finger drag orbits around zoomed-in cube
+          const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+          const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+          if (touchState.prevCx !== undefined) {
+            const dx = cx - touchState.prevCx;
+            const dy = cy - touchState.prevCy;
+            const offset = camera.position.clone().sub(preziLookAt);
+            const spherical = new THREE.Spherical().setFromVector3(offset);
+            spherical.theta -= dx * 0.006;
+            spherical.phi = Math.max(0.3, Math.min(Math.PI - 0.3, spherical.phi + dy * 0.006));
+            offset.setFromSpherical(spherical);
+            camera.position.copy(preziLookAt).add(offset);
+            camera.lookAt(preziLookAt);
+          }
+          touchState.prevCx = cx;
+          touchState.prevCy = cy;
+        } else if (!preziFlyActive) {
+          universeZoom = Math.max(15, Math.min(180, universeZoom - (d - touchState.dist) * 0.1));
+          const spherical = new THREE.Spherical().setFromVector3(camera.position);
+          spherical.radius = universeZoom;
+          camera.position.setFromSpherical(spherical);
+          camera.lookAt(preziLookAt);
+        }
+        touchState.dist = d;
+      }
+    }, { passive: false });
+    renderer.domElement.addEventListener('touchend', e => {
+      if (e.touches.length === 0) { renderer.domElement.dispatchEvent(new PointerEvent('pointerup')); touchState = null; }
+    });
+
+    // ─── Keyboard ─────────────────────────────────────────────────────────────────
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && (preziZoomedIn || preziFlyActive)) {
+        if (!preziFlyActive) flyBack();
+      }
+    });
+
+    // ─── Scramble All / Solve All ─────────────────────────────────────────────────
+    function setButtons(scrambleEnabled, solveEnabled) {
+      document.getElementById('scrambleBtn').disabled = !scrambleEnabled;
+      document.getElementById('solveBtn').disabled = !solveEnabled;
+    }
+
+    function scrambleAll() {
+      setButtons(false, false);
+      // Fly back to overview if zoomed in, then scramble
+      if (preziZoomedIn) { flyBack(); }
+      let doneCount = 0;
+      const total = universeInstances.length;
+      universeInstances.forEach(inst => {
+        inst.scramble(() => {
+          doneCount++;
+          if (doneCount === total) setButtons(true, true);
+        });
+      });
+    }
+
+    function solveAll() {
+      setButtons(false, false);
+      if (preziZoomedIn) { flyBack(); }
+      let doneCount = 0;
+      const total = universeInstances.length;
+      universeInstances.forEach(inst => {
+        inst.solve(() => {
+          doneCount++;
+          if (doneCount === total) setButtons(true, false);
+        });
+      });
+    }
+
+    // ─── Render loop ──────────────────────────────────────────────────────────────
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+    window.addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+
+    animate();
+  </script>
+</body>
+
+</html>
